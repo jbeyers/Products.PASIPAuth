@@ -1,12 +1,12 @@
 from AccessControl import ClassSecurityInfo
-from Globals import InitializeClass
+from AccessControl.class_init import InitializeClass
 
 from Products.PluggableAuthService.plugins.BasePlugin import BasePlugin
 from Products.PluggableAuthService.utils import classImplements
 from Products.PluggableAuthService.interfaces.plugins import IAuthenticationPlugin, IExtractionPlugin
 
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
-import cidr
+from . import cidr
 
 manage_addIPAuthPluginForm = PageTemplateFile(
             'www/ipAuthAdd', globals(), __name__='manage_addIPAuthPluginForm' )

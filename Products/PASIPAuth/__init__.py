@@ -3,7 +3,7 @@
 
 from AccessControl.Permissions import add_user_folders
 from Products.PluggableAuthService.PluggableAuthService import registerMultiPlugin
-from AuthIPPlugin import AuthIPPlugin, manage_addIPAuthPlugin, manage_addIPAuthPluginForm
+from . import AuthIPPlugin
 
 _initialized = False
 
@@ -12,11 +12,11 @@ def initialize(context):
     # This is sometimes called twice, protect against that.
     global _initialized
     if not _initialized:
-        registerMultiPlugin(AuthIPPlugin.meta_type)
+        registerMultiPlugin(AuthIPPlugin.AuthIPPlugin.meta_type)
 
-        context.registerClass( AuthIPPlugin,
+        context.registerClass( AuthIPPlugin.AuthIPPlugin,
                                 permission=add_user_folders,
-                                constructors=(manage_addIPAuthPluginForm,manage_addIPAuthPlugin),
+                                constructors=(AuthIPPlugin.manage_addIPAuthPluginForm,AuthIPPlugin.manage_addIPAuthPlugin),
                                 icon='www/PluggableAuthService.png',
                                 visibility=None,
                             )
