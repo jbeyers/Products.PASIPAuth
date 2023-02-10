@@ -23,15 +23,35 @@ def in_cidr(address, net):
     True
     """
 
+    print('Enter in_cidr with {} and {}'.format(address, net))
     mask = 0xFFFFFFFF
     components = net.split("/")
+    print('Cpmponents: {}'.format(components))
+    print('Cpmponents: len = {}'.format(len(components)))
     if len(components) > 1:
+        print('Cpmponents: len = {}'.format(len(components)))
         mask = ~(0xFFFFFFFF >> int(components[1]))
 
-    x = cidr(address)
-    y = cidr(components[0])
+    try:
+        x = cidr(address)
+    except Exception as err:
+        print('Exception x in in_cidr: {}'.format(err))
+        result = False
 
-    return (x & mask) == y
+    try:
+        y = cidr(components[0])
+    except Exception as err:
+        print('Exception y in in_cidr: {}'.format(err))
+        result = False
+
+    try:
+        print('match {} to {}'.format(x, y))
+        result = (x & mask) == y
+    except Exception as err:
+        print('Exception match in in_cidr: {}'.format(err))
+        result = False
+
+    return result
 
 #if __name__ == '__main__':
 #    print in_cidr('10.0.0.7', '10.0.0.0/29')

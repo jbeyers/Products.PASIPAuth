@@ -6,7 +6,7 @@ from Products.PluggableAuthService.utils import classImplements
 from Products.PluggableAuthService.interfaces.plugins import IAuthenticationPlugin, IExtractionPlugin
 
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
-from . import cidr
+import ipaddress
 
 manage_addIPAuthPluginForm = PageTemplateFile(
             'www/ipAuthAdd', globals(), __name__='manage_addIPAuthPluginForm' )
@@ -53,6 +53,7 @@ class AuthIPPlugin(BasePlugin):
     def extractCredentials(self, request):
         """Extract credentials for ip address"""
 
+        # print('Inside extractCredentials')
         clean_rem_addresses=[]
         for s in self.remote_ip_addresses.split("\n"):
             s.strip(" ")
@@ -60,22 +61,36 @@ class AuthIPPlugin(BasePlugin):
                 continue
             s = s.split(":")
             clean_rem_addresses.append(tuple(s))
+        # print("Available addresses: {}".format(clean_rem_addresses))
         
         forwarded_ips=[]
         for ip_address in request.get('HTTP_X_FORWARDED_FOR', '').split(','):
             ip_address = ip_address.strip()
             if ip_address:
                 forwarded_ips.append(ip_address)
+        # print("Forwarded IPs: {}".format(forwarded_ips))
 
+        clientAddr = request.getClientAddr()
+        # print("Client Address: {}".format(clientAddr))
         for tup in clean_rem_addresses:
-            if len(tup) <= 1:
-                return {}
-            clientAddr = request.getClientAddr()
-            if cidr.in_cidr(clientAddr, tup[0]):
-                return {'loginid':tup[1], 'remote_address':clientAddr,}
-            for ip_address in forwarded_ips:
-                if cidr.in_cidr(ip_address, tup[0]):
-                    return {'loginid':tup[1], 'remote_address':ip_address,}
+            try:
+                # print("Look for {}".format(tup))
+                if len(tup) <= 1:
+                    print('Error in AuthIPPlugin: Invalid address: {}'.format(tup))
+                    continue
+                if ipaddress.IPv4Address(clientAddr) in ipaddress.IPv4Network(tup[0]):
+                    # print('clientAddr in cidr')
+                    return {'loginid':tup[1], 'remote_address':clientAddr,}
+                # print('Not in CIDR')
+                for ip_address in forwarded_ips:
+                    # print("Loop forwarded_ips: {}".format(ip_address))
+                    if ipaddress.IPv4Address(ip_address) in ipaddress.IPv4Network(tup[0]):
+                        # print('CIDR in forwarded')
+                        return {'loginid':tup[1], 'remote_address':ip_address,}
+                    # print('CIDR NOT in forwarded')
+            except Exception as err:
+                print('Error in AuthIPPlugin: {}'.format(err))
+        # print('Exit extractCredentials with no matches')
         return {}
 
 classImplements(AuthIPPlugin, IAuthenticationPlugin, IExtractionPlugin)

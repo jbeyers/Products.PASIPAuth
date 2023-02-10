@@ -27,7 +27,6 @@ setup(name='Products.PASIPAuth',
       ],
       entry_points="""
         # -*- Entry points: -*-
-        target = plone
         """,
  
 )
