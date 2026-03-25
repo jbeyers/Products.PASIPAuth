@@ -1,8 +1,15 @@
 <configure
     xmlns="http://namespaces.zope.org/zope"
     xmlns:five="http://namespaces.zope.org/five"
+    xmlns:zcml="http://namespaces.zope.org/zcml"
+    package="Products.PASIPAuth"
     i18n_domain="Products.PASIPAuth">
 
     <five:registerPackage package="." initialize=".initialize" />
+
+    <include
+        zcml:condition="installed plone.restapi"
+        file="rest_configure.zcml"
+    />
 
 </configure>

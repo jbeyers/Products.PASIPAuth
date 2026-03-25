@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:plone="http://namespaces.plone.org/plone"
+    i18n_domain="Products.PASIPAuth">
+
+  <plone:service
+      method="GET"
+      accept="application/json"
+      factory=".ip_login.IPLoginService"
+      for="*"
+      name="@ip-login"
+      permission="zope2.Public"
+      layer="plone.restapi.interfaces.IPloneRestapiLayer"
+      />
+
+</configure>
