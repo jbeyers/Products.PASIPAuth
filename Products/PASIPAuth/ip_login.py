@@ -90,7 +90,13 @@ def _issue_jwt_token(acl_users, userid):
             "No jwt_auth plugin found in acl_users. "
             "Ensure plone.restapi is properly installed."
         )
-    return jwt_plugin.create_token(userid)
+    token = jwt_plugin.create_token(userid)
+    # create_token may return bytes in Python 3 — decode to str so the
+    # response serializes cleanly to JSON. Without this the JSON serializer
+    # throws a TypeError and Zope returns a 500 HTML error page instead.
+    if isinstance(token, bytes):
+        token = token.decode("utf-8")
+    return token
 
 
 class IPLoginService(Service):
