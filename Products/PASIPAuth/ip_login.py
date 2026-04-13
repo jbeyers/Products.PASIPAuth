@@ -10,22 +10,25 @@ from zope.interface import alsoProvides
 logger = logging.getLogger(__name__)
 
 
-def _get_client_ip(request, trust_xff=True):
+def _get_all_client_ips(request):
     """
-    Determine the real client IP address.
+    Return all candidate IPs — forwarded chain first, then REMOTE_ADDR.
 
-    If trust_xff is True, the leftmost IP in X-Forwarded-For is used.
-    This is only safe when you control the proxy in front of Plone and
-    know it sets XFF correctly. Set trust_xff=False if Plone is exposed
-    directly to the internet.
+    Mirrors the logic in AuthIPPlugin.extractCredentials so that @ip-login
+    matches the same IPs that PAS IP auth matches for content requests.
+    This means the same IP config that grants content access will also
+    grant a JWT token, regardless of whether the request comes through
+    the Volto proxy or directly via nginx.
     """
-    if trust_xff:
-        xff = request.get("HTTP_X_FORWARDED_FOR", "")
-        forwarded_ips = [ip.strip() for ip in xff.split(",") if ip.strip()]
-        if forwarded_ips:
-            return forwarded_ips[0]
-
-    return request.getClientAddr()
+    ips = []
+    for ip in request.get("HTTP_X_FORWARDED_FOR", "").split(","):
+        ip = ip.strip()
+        if ip:
+            ips.append(ip)
+    client_addr = request.getClientAddr()
+    if client_addr and client_addr not in ips:
+        ips.append(client_addr)
+    return ips
 
 
 def _get_ip_auth_plugin(acl_users):
@@ -42,7 +45,7 @@ def _get_ip_auth_plugin(acl_users):
 
 def _match_ip(client_ip, plugin):
     """
-    Check the client IP against all networks configured in the plugin.
+    Check a single client IP against all networks configured in the plugin.
     Returns the matched userid string, or None if no match.
 
     Each line in plugin.remote_ip_addresses is expected to be:
@@ -112,12 +115,9 @@ class IPLoginService(Service):
     Security notes:
     - Only issues tokens for users that actually exist in Plone.
     - All logic is server-side; the client supplies nothing except its IP.
-    - XFF trust is configurable via the trust_xff property on this view
-      (default True, safe only behind a trusted reverse proxy).
+    - Checks all IPs in the X-Forwarded-For chain plus REMOTE_ADDR,
+      mirroring AuthIPPlugin.extractCredentials exactly.
     """
-
-    # Set to False if Plone is exposed directly (no trusted proxy in front).
-    trust_xff = True
 
     def reply(self):
         # Disable CSRF protection — this is a GET endpoint with no side
@@ -133,28 +133,34 @@ class IPLoginService(Service):
             logger.error("@ip-login called but no AuthIPPlugin is configured in PAS.")
             raise Unauthorized("IP authentication is not configured.")
 
-        # --- 2. Resolve client IP ---
-        client_ip = _get_client_ip(self.request, trust_xff=self.trust_xff)
-        if not client_ip:
+        # --- 2. Resolve all candidate client IPs ---
+        client_ips = _get_all_client_ips(self.request)
+        if not client_ips:
             logger.warning("@ip-login: could not determine client IP.")
             raise Unauthorized("Could not determine client IP address.")
 
-        logger.debug("@ip-login: checking IP %s", client_ip)
+        logger.debug("@ip-login: checking IPs %s", client_ips)
 
         # --- 3. Match against configured networks ---
-        userid = _match_ip(client_ip, plugin)
+        # Check each IP in the chain — same order as AuthIPPlugin.extractCredentials
+        userid = None
+        matched_ip = None
+        for ip in client_ips:
+            userid = _match_ip(ip, plugin)
+            if userid:
+                matched_ip = ip
+                break
+
         if userid is None:
-            logger.debug("@ip-login: no match for IP %s", client_ip)
             self.request.response.setStatus(401)
             return {"error": "No IP match"}
 
         # --- 4. Verify the user actually exists in Plone ---
-        user = api.user.get(userid=userid)
-
+        user = acl_users.getUserById(userid)
         if user is None:
             logger.warning(
                 "@ip-login: IP %s matched userid %r but that user does not exist.",
-                client_ip,
+                matched_ip,
                 userid,
             )
             raise Unauthorized("Matched user does not exist.")
@@ -168,7 +174,7 @@ class IPLoginService(Service):
             return {"error": str(e)}
 
         logger.info(
-            "@ip-login: issued token for user %r from IP %s", userid, client_ip
+            "@ip-login: issued token for user %r from IP %s", userid, matched_ip
         )
 
         self.request.response.setStatus(200)
