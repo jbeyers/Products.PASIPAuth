@@ -149,7 +149,8 @@ class IPLoginService(Service):
             return {"error": "No IP match"}
 
         # --- 4. Verify the user actually exists in Plone ---
-        user = acl_users.getUserById(userid)
+        user = api.user.get(userid=userid)
+
         if user is None:
             logger.warning(
                 "@ip-login: IP %s matched userid %r but that user does not exist.",
